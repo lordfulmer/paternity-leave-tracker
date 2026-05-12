@@ -23,6 +23,7 @@ interface ExerciseState {
   sets: SetInput[];
   prevWeight?: number | null;
   prevReps?: number | null;
+  lastSessionSets?: { weight: number; reps: number }[];
 }
 
 export default function LogPage() {
@@ -73,17 +74,31 @@ export default function LogPage() {
     if (!exercises.length) return;
     Promise.all(
       exercises.map(ex =>
-        fetch(`/api/sheets/getRecentSets?exercise=${encodeURIComponent(ex.exercise)}&limit=1`)
+        fetch(`/api/sheets/getRecentSets?exercise=${encodeURIComponent(ex.exercise)}&limit=10`)
           .then(r => r.json())
-          .then(j => ({ ex: ex.exercise, last: (j.data?.[0] as WorkoutSet | undefined) }))
-          .catch(() => ({ ex: ex.exercise, last: undefined }))
+          .then(j => {
+            const recent = (j.data ?? []) as WorkoutSet[];
+            if (!recent.length) return { ex: ex.exercise, last: undefined, lastSessionSets: [] };
+            const latestDate = recent[0].date;
+            const lastSessionSets = recent
+              .filter(s => s.date === latestDate && s.weight != null && s.reps != null)
+              .sort((a, b) => (a.set_number ?? 0) - (b.set_number ?? 0))
+              .map(s => ({ weight: s.weight!, reps: s.reps! }));
+            return { ex: ex.exercise, last: recent[0], lastSessionSets };
+          })
+          .catch(() => ({ ex: ex.exercise, last: undefined, lastSessionSets: [] }))
       )
     ).then(results => {
       setExState(prev => {
         const next = { ...prev };
-        results.forEach(({ ex, last }) => {
-          if (next[ex] && last) {
-            next[ex] = { ...next[ex], prevWeight: last.weight, prevReps: last.reps };
+        results.forEach(({ ex, last, lastSessionSets }) => {
+          if (next[ex]) {
+            next[ex] = {
+              ...next[ex],
+              prevWeight: last?.weight ?? null,
+              prevReps: last?.reps ?? null,
+              lastSessionSets,
+            };
           }
         });
         return next;
@@ -330,10 +345,20 @@ export default function LogPage() {
                   <div className="font-semibold text-ink leading-tight">{ex.exercise}</div>
                   <div className="text-xs text-ink-muted mt-1">
                     {ex.sets} × {ex.reps}
-                    {st?.prevWeight != null && st.prevReps != null && (
-                      <span className="ml-2 text-ink-dim">· last: {st.prevWeight}×{st.prevReps}</span>
-                    )}
                   </div>
+                  {st?.lastSessionSets && st.lastSessionSets.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                      <span className="text-[10px] text-ink-dim uppercase tracking-wide">Last:</span>
+                      {st.lastSessionSets.map((s, i) => (
+                        <span
+                          key={i}
+                          className="text-[11px] bg-bg-elevated border border-border px-1.5 py-0.5 rounded tabular-nums text-ink-muted"
+                        >
+                          {s.weight}×{s.reps}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {ex.note && <div className="text-xs text-ink-dim mt-1 italic">{ex.note}</div>}
                 </div>
 

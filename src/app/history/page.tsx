@@ -1,8 +1,18 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { fetcher, postAction } from "@/lib/fetcher";
 import type { WorkoutSet, Phase } from "@/types";
 import { phaseColor, phaseLabel } from "@/lib/helpers";
@@ -25,6 +35,34 @@ interface SessionGroup {
 
 export default function HistoryPage() {
   const { data: log, mutate } = useSWR<WorkoutSet[]>("/api/sheets/getWorkoutLog", fetcher);
+  const [selectedExercise, setSelectedExercise] = useState<string>("");
+
+  const exerciseNames = useMemo(() => {
+    const names = new Set<string>();
+    (log ?? []).forEach(s => names.add(s.exercise));
+    return Array.from(names).sort();
+  }, [log]);
+
+  const activeExercise = selectedExercise || exerciseNames[0] || "";
+
+  const progressData = useMemo(() => {
+    if (!activeExercise || !log) return [];
+    const byDate = new Map<string, { date: string; maxWeight: number }>();
+    log
+      .filter(s => s.exercise === activeExercise && s.weight != null)
+      .forEach(s => {
+        const entry = byDate.get(s.date);
+        if (!entry) {
+          byDate.set(s.date, { date: s.date, maxWeight: s.weight! });
+        } else {
+          entry.maxWeight = Math.max(entry.maxWeight, s.weight!);
+        }
+      });
+    return Array.from(byDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-8)
+      .map(d => ({ date: d.date.slice(5), maxWeight: d.maxWeight }));
+  }, [log, activeExercise]);
 
   const sessions: SessionGroup[] = [];
   const map = new Map<string, SessionGroup>();
@@ -80,6 +118,66 @@ export default function HistoryPage() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
       <PageHeader title="History" subtitle={`${sessions.length} sessions · swipe left to delete`} />
+
+      {/* Exercise progress chart */}
+      {exerciseNames.length > 0 && (
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs uppercase tracking-wide text-ink-muted font-semibold shrink-0">
+              Progress
+            </div>
+            <select
+              value={activeExercise}
+              onChange={e => setSelectedExercise(e.target.value)}
+              className="input text-xs py-1 px-2 h-auto min-w-0 truncate"
+            >
+              {exerciseNames.map(ex => (
+                <option key={ex} value={ex}>{ex}</option>
+              ))}
+            </select>
+          </div>
+          {progressData.length >= 2 ? (
+            <>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={progressData}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#1F2937" vertical={false} />
+                    <XAxis dataKey="date" stroke="#64748B" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis
+                      stroke="#64748B"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={["dataMin - 5", "dataMax + 5"]}
+                      unit=" lbs"
+                    />
+                    <Tooltip
+                      contentStyle={{ background: "#1A2233", border: "1px solid #1F2937", borderRadius: 10 }}
+                      labelStyle={{ color: "#F1F5F9" }}
+                      formatter={(v: number) => [`${v} lbs`, "Top set"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="maxWeight"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      dot={{ fill: "#3B82F6", r: 4 }}
+                      activeDot={{ r: 6, fill: "#3B82F6" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="text-[10px] text-ink-dim text-right">
+                Heaviest set per session · last {progressData.length} sessions
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-ink-muted py-4 text-center">
+              Log at least 2 sessions to see progress
+            </div>
+          )}
+        </div>
+      )}
 
       {sessions.length === 0 && (
         <div className="card p-6 text-center text-ink-muted">
