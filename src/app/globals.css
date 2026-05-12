@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body { @apply bg-bg text-ink; -webkit-tap-highlight-color: transparent; }
+  body { font-feature-settings: "ss01", "cv01"; }
+  input, select, textarea, button { @apply font-sans; }
+  input[type="number"] { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .card { @apply bg-bg-card border border-border rounded-lg; }
+  .card-elev { @apply bg-bg-elevated border border-border rounded-lg; }
+  .btn { @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-DEFAULT font-medium text-sm transition-colors; }
+  .btn-primary { @apply bg-accent hover:bg-accent-hover text-white; }
+  .btn-ghost { @apply bg-bg-elevated hover:bg-bg-card text-ink border border-border; }
+  .btn-danger { @apply bg-whoop-red/20 hover:bg-whoop-red/30 text-whoop-red border border-whoop-red/40; }
+  .input { @apply w-full bg-bg-elevated border border-border rounded-DEFAULT px-3 py-2.5 text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent transition-colors; }
+  .label { @apply text-xs uppercase tracking-wide text-ink-muted font-semibold mb-1.5 block; }
+  .pill { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1F2937; border-radius: 4px; }
